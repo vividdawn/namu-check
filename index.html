@@ -133,7 +133,7 @@
     
     <!-- VIEW 1: Student Check Mode (Default Public Tablet Grid) -->
     <div id="viewStudent" class="h-full w-full flex flex-col">
-      <!-- Student Grid: Dynamic 25-student 5x5 responsive layout -->
+      <!-- Student Grid: Dynamic 23-student 5x5 responsive layout -->
       <div id="studentGrid" class="grid grid-cols-5 grid-rows-5 gap-1.5 sm:gap-2 h-full w-full">
         <!-- Rendered dynamically via JS -->
       </div>
@@ -165,6 +165,10 @@
           <span>교사 관리자 모드</span>
         </h2>
         <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="fetchStudentsFromGoogleSheet()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span>구글 시트에서 명단 불러오기</span>
+          </button>
           <button onclick="syncToGoogleSheet()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
             <i class="fa-solid fa-file-excel"></i>
             <span>구글 시트로 동기화 전송</span>
@@ -219,7 +223,7 @@
         <div class="bg-stone-50 p-3.5 rounded-2xl border border-stone-200 flex flex-col">
           <h3 class="text-xs font-extrabold text-stone-800 mb-2 flex items-center gap-1.5">
             <i class="fa-solid fa-users"></i>
-            <span>학생 명단 설정 (번호:이름 또는 이름만 한 줄씩)</span>
+            <span>학생 명단 설정 (구글 시트 연동 권장)</span>
           </h3>
           <textarea id="studentListTextarea" rows="6" class="w-full text-xs p-2.5 bg-white rounded-xl border border-stone-300 outline-none focus:ring-2 focus:ring-stone-400 mb-2 font-mono resize-none"></textarea>
           <button onclick="saveStudentList()" class="w-full py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-xs font-bold transition">
@@ -233,19 +237,20 @@
 
   <!-- BOTTOM FOOTER (Mode Switcher placed at the very bottom) -->
   <footer class="h-10 bg-white/95 backdrop-blur rounded-2xl px-3 flex items-center justify-between border-2 border-brandBorder shadow-xs shrink-0">
-    <div class="flex items-center gap-1.5">
-      <button onclick="switchTab('student')" id="tabBtn-student" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold bg-brandOrange text-white shadow-2xs transition">
+    <!-- Dynamic Footer Navigation based on URL Hash Mode -->
+    <div id="footerNav" class="flex items-center gap-1.5">
+      <button onclick="navigateTo('student')" id="tabBtn-student" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold bg-brandOrange text-white shadow-2xs transition">
         <i class="fa-solid fa-tablet-screen-button mr-1"></i>학생 체크
       </button>
-      <button onclick="switchTab('dashboard')" id="tabBtn-dashboard" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition">
+      <button onclick="navigateTo('dashboard')" id="tabBtn-dashboard" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition">
         <i class="fa-solid fa-desktop mr-1"></i>교실 현황판
       </button>
-      <button onclick="openAdminWithPrompt()" id="tabBtn-admin" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition">
+      <button onclick="navigateTo('admin')" id="tabBtn-admin" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition">
         <i class="fa-solid fa-lock mr-1"></i>교사 관리
       </button>
     </div>
 
-    <div class="text-[11px] font-semibold text-stone-400 hidden sm:block">
+    <div id="footerHint" class="text-[11px] font-semibold text-stone-400">
       💡 자신의 번호를 터치하여 과제를 완료하세요
     </div>
   </footer>
@@ -320,7 +325,7 @@
     import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Global default app state
+    // Global default app state (23 students default)
     window.state = {
       assignments: [
         { id: "1", title: "일기 쓰기" },
@@ -370,7 +375,6 @@
               isRemoteUpdate = false;
             }
           } else {
-            // Initialize remote doc if missing
             setDoc(cloudDocRef, { state: window.state }).catch(e => console.warn("Doc init:", e));
           }
         }, (error) => {
@@ -400,6 +404,39 @@
   <script>
     let selectedStudentId = null;
     let pendingConfirmAction = null;
+    let isAdminAuthenticated = false;
+
+    // --- URL Hash Routing Logic ---
+    function handleHashChange() {
+      const hash = window.location.hash.replace("#", "");
+      if (hash === "dashboard") {
+        switchTab("dashboard");
+      } else if (hash === "admin") {
+        if (!isAdminAuthenticated) {
+          openAdminWithPrompt();
+        } else {
+          switchTab("admin");
+        }
+      } else {
+        // Default to student mode (#student or empty)
+        switchTab("student");
+      }
+    }
+
+    function navigateTo(mode) {
+      if (mode === "admin" && !isAdminAuthenticated) {
+        openAdminWithPrompt();
+      } else {
+        window.location.hash = mode;
+      }
+    }
+
+    window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("DOMContentLoaded", () => {
+      loadLocalFallback();
+      initDate();
+      handleHashChange(); // Route based on current hash
+    });
 
     function loadLocalFallback() {
       const saved = localStorage.getItem("namu_classroom_mumucheck_v2");
@@ -418,11 +455,46 @@
       }
     }
 
+    function initDate() {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const date = now.getDate();
+      const days = ["일", "월", "화", "수", "목", "금", "토"];
+      const dayStr = days[now.getDay()];
+      document.getElementById("headerDate").innerText = `${month}월 ${date}일 (${dayStr})`;
+    }
+
     function saveGasSettings() {
       window.state.gasUrl = document.getElementById("gasUrlInput").value.trim();
       window.state.gasToken = document.getElementById("gasTokenInput").value.trim();
       window.saveState();
       showToast("구글 시트 연동 설정이 저장되었습니다.");
+    }
+
+    async function fetchStudentsFromGoogleSheet() {
+      const url = window.state.gasUrl || document.getElementById("gasUrlInput").value.trim();
+      if (!url) {
+        showToast("구글 Apps Script URL을 먼저 설정해주세요.");
+        return;
+      }
+
+      showToast("구글 시트에서 학생 명단 가져오는 중...");
+
+      try {
+        const res = await fetch(`${url}?action=fetchStudents`);
+        const data = await res.json();
+
+        if (data && data.ok && data.students && data.students.length > 0) {
+          window.state.students = data.students;
+          window.saveState();
+          showToast(`🎉 구글 시트에서 ${data.students.length}명의 명단을 성공적으로 불러왔습니다!`);
+        } else {
+          showToast("명단을 불러오지 못했습니다. 구글 시트의 [학생명단] 탭을 확인해주세요.");
+        }
+      } catch (err) {
+        console.error("Fetch students error:", err);
+        showToast("학생 명단 가져오기 중 오류가 발생했습니다.");
+      }
     }
 
     async function syncToGoogleSheet() {
@@ -454,6 +526,10 @@
         const data = await res.json();
         if (data && data.ok) {
           showToast("🎉 구글 시트 동기화 완료!");
+          if (data.students && data.students.length > 0) {
+            window.state.students = data.students;
+            window.saveState();
+          }
         } else {
           showToast("동기화 실패: " + (data.error || "알 수 없는 오류"));
         }
@@ -461,32 +537,6 @@
         console.error("GAS Sync Error:", err);
         showToast("구글 시트 전송 중 오류가 발생했습니다.");
       }
-    }
-
-    function fetchWeather(lat, lng) {
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`)
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.current_weather) {
-            const temp = Math.round(data.current_weather.temperature);
-            const code = data.current_weather.weathercode;
-            document.getElementById('weatherTemp').innerText = `${temp}°C`;
-            document.getElementById('weatherIcon').innerText = getWeatherIcon(code);
-          }
-        })
-        .catch(() => {
-          document.getElementById('weatherTemp').innerText = '22°C';
-          document.getElementById('weatherIcon').innerText = '☀️';
-        });
-    }
-
-    function getWeatherIcon(code) {
-      if (code === 0) return '☀️';
-      if (code >= 1 && code <= 3) return '⛅';
-      if (code >= 45 && code <= 48) return '🌫️';
-      if (code >= 51 && code <= 67) return '🌧️';
-      if (code >= 71 && code <= 77) return '❄️';
-      return '🌤️';
     }
 
     function switchTab(mode) {
@@ -503,6 +553,21 @@
       document.getElementById("viewDashboard").classList.toggle("hidden", mode !== "dashboard");
       document.getElementById("viewAdmin").classList.toggle("hidden", mode !== "admin");
 
+      // 주소(URL Hash)별 하단 버튼 제어: 학생/TV 화면에서는 버튼 숨기기
+      const navElem = document.getElementById("footerNav");
+      const hintElem = document.getElementById("footerHint");
+
+      if (mode === "student") {
+        navElem.classList.add("hidden"); // 학생 태블릿: 모드 버튼 완전 숨김
+        hintElem.innerText = "💡 자신의 번호를 터치하여 과제를 완료하세요";
+      } else if (mode === "dashboard") {
+        navElem.classList.add("hidden"); // 교실 TV: 모드 버튼 완전 숨김
+        hintElem.innerText = "📺 실시간 교실 과제 제출 현황판";
+      } else {
+        navElem.classList.remove("hidden"); // 교사 관리 모드: 모드 전환 버튼 표시
+        hintElem.innerText = "🔒 교사 전용 관리자 모드";
+      }
+
       renderAll();
     }
 
@@ -515,13 +580,17 @@
     function closePinModal() {
       document.getElementById("pinModal").classList.add("hidden");
       document.getElementById("pinModal").classList.remove("flex");
+      if (window.location.hash === "#admin" && !isAdminAuthenticated) {
+        window.location.hash = "student";
+      }
     }
 
     function submitPin() {
       const enteredPin = document.getElementById("pinInput").value;
       if (enteredPin === window.state.adminPin) {
+        isAdminAuthenticated = true;
         closePinModal();
-        switchTab("admin");
+        window.location.hash = "admin";
         showToast("교사 관리자 모드로 전환되었습니다.");
       } else {
         showToast("비밀번호가 맞지 않습니다.");
