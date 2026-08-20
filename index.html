@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>나무 반 과제 체크판</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <!-- Google Fonts: Gaegu & Noto Sans KR -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+  <!-- Canvas Confetti Library -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandBg: '#FAF7EE',
+            brandCard: '#FFFDF0',
+            brandBorder: '#E8DEC8',
+            brandText: '#4A3B32',
+            brandGreen: '#82C46C',
+            brandOrange: '#F5872A',
+            brandBlue: '#58B1E8',
+            brandPink: '#FF9B9B'
+          },
+          fontFamily: {
+            cute: ['Gaegu', 'cursive'],
+            sans: ['Noto Sans KR', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.03);
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(74, 59, 50, 0.2);
+      border-radius: 8px;
+    }
+
+    /* Floating Header Icon Animation */
+    @keyframes soft-float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-3px); }
+    }
+    .float-anim {
+      animation: soft-float 3s ease-in-out infinite;
+    }
+
+    /* Modal Animation */
+    @keyframes popIn {
+      0% { transform: scale(0.92); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .modal-pop {
+      animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+
+<body class="bg-brandBg text-brandText font-sans h-screen w-screen flex flex-col justify-between p-2 sm:p-3 overflow-hidden select-none">
+
+  <!-- TOP HEADER (Slim header to maximize tablet view area) -->
+  <header class="h-12 bg-white/95 backdrop-blur rounded-2xl px-3 sm:px-4 flex items-center justify-between border-2 border-brandBorder shadow-xs shrink-0 gap-2">
+    
+    <!-- Title & Character Badge -->
+    <div class="flex items-center gap-2 overflow-hidden">
+      <div class="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0 float-anim">
+        <span class="text-sm">🌱</span>
+      </div>
+      <div class="flex items-center gap-1.5 truncate">
+        <h1 class="text-sm sm:text-base md:text-lg font-black font-cute tracking-wide whitespace-nowrap">
+          <span class="text-brandOrange">열정</span>적으로 
+          <span class="text-brandBlue">배려</span>하며 
+          <span class="text-brandGreen">평화</span>롭고 
+          <span class="text-amber-500">행복</span>한 
+          <span class="text-amber-800 font-extrabold">나무</span>반
+        </h1>
+        <span class="text-xs text-stone-400 font-normal hidden md:inline">| 실시간 과제 체크</span>
+      </div>
+    </div>
+
+    <!-- Right Header Stats & Weather -->
+    <div class="flex items-center gap-3 shrink-0">
+      <!-- Sync Indicator -->
+      <div id="syncBadge" class="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span>실시간 동기화 중</span>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="hidden sm:flex items-center gap-2 bg-stone-50 px-3 py-1 rounded-xl border border-stone-200">
+        <span class="text-[11px] font-bold text-stone-600">제출률</span>
+        <div class="w-20 md:w-28 bg-stone-200 rounded-full h-2 overflow-hidden">
+          <div id="headerProgressBar" class="bg-brandGreen h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+        <span id="headerProgressText" class="text-xs font-black text-brandGreen">0%</span>
+      </div>
+
+      <!-- Live Weather -->
+      <div id="headerWeather" class="flex items-center gap-1.5 text-xs text-stone-600 bg-stone-50 px-2.5 py-1 rounded-xl border border-stone-200">
+        <span id="weatherIcon" class="text-sm">🌤️</span>
+        <span id="weatherTemp" class="font-bold">--°C</span>
+      </div>
+
+      <!-- Date Display -->
+      <div id="headerDate" class="text-xs font-bold text-stone-600 hidden lg:block">
+        --월 --일
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 my-2 relative min-h-0">
+    
+    <!-- VIEW 1: Student Check Mode (Default Public Tablet Grid) -->
+    <div id="viewStudent" class="h-full w-full flex flex-col">
+      <!-- Student Grid: Dynamic 25-student 5x5 responsive layout -->
+      <div id="studentGrid" class="grid grid-cols-5 grid-rows-5 gap-1.5 sm:gap-2 h-full w-full">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+
+    <!-- VIEW 2: Classroom Dashboard Mode (TV Display View) -->
+    <div id="viewDashboard" class="h-full w-full bg-white/90 backdrop-blur rounded-2xl p-3 border-2 border-brandBorder shadow-xs flex flex-col hidden">
+      <div class="flex justify-between items-center mb-2 pb-2 border-b border-stone-200 shrink-0">
+        <div class="text-xs sm:text-sm font-bold text-stone-800 flex items-center gap-2">
+          <i class="fa-solid fa-chart-pie text-brandOrange"></i>
+          <span>실시간 학급 과제 제출 현황표</span>
+        </div>
+        <div id="dashboardSummaryText" class="text-xs font-bold text-brandGreen bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+          완료: 0 / 23 명
+        </div>
+      </div>
+      
+      <!-- Live Grid View -->
+      <div id="dashboardGrid" class="grid grid-cols-5 grid-rows-5 gap-1.5 sm:gap-2 flex-1 min-h-0">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+
+    <!-- VIEW 3: Teacher Admin Mode (Assignments & Student List Management) -->
+    <div id="viewAdmin" class="h-full w-full bg-white/95 backdrop-blur rounded-2xl p-4 border-2 border-brandBorder shadow-xs flex flex-col overflow-y-auto hidden">
+      <div class="flex justify-between items-center pb-3 border-b border-stone-200 shrink-0 mb-3 flex-wrap gap-2">
+        <h2 class="font-bold text-stone-800 text-sm sm:text-base flex items-center gap-2">
+          <i class="fa-solid fa-user-shield text-stone-600"></i>
+          <span>교사 관리자 모드</span>
+        </h2>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="syncToGoogleSheet()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs">
+            <i class="fa-solid fa-file-excel"></i>
+            <span>구글 시트로 동기화 전송</span>
+          </button>
+          <button onclick="exportToCSV()" class="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-file-csv"></i>
+            <span>오늘 기록 CSV 내보내기</span>
+          </button>
+          <button onclick="confirmResetToday()" class="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-rotate-left"></i>
+            <span>오늘 체크 초기화</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Google Sheets API Settings Card -->
+      <div class="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-200 mb-4 shrink-0">
+        <h3 class="text-xs font-extrabold text-emerald-900 mb-2 flex items-center gap-1.5">
+          <i class="fa-solid fa-table"></i>
+          <span>구글 스프레드시트 연동 설정 (Google Apps Script)</span>
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <input type="text" id="gasUrlInput" placeholder="Apps Script 웹 앱 URL (https://script.google.com/macros/s/...)" class="md:col-span-2 text-xs px-3 py-2 bg-white rounded-xl border border-stone-300 outline-none focus:ring-2 focus:ring-emerald-500" />
+          <div class="flex gap-2">
+            <input type="password" id="gasTokenInput" placeholder="보안 토큰 (예: namu2026)" class="w-full text-xs px-3 py-2 bg-white rounded-xl border border-stone-300 outline-none focus:ring-2 focus:ring-emerald-500" />
+            <button onclick="saveGasSettings()" class="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition shrink-0">
+              저장
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+        <!-- Assignment Management Card -->
+        <div class="bg-amber-50/60 p-3.5 rounded-2xl border border-amber-200 flex flex-col">
+          <h3 class="text-xs font-extrabold text-amber-900 mb-2 flex items-center gap-1.5">
+            <i class="fa-solid fa-list-check"></i>
+            <span>오늘의 과제 목록 관리</span>
+          </h3>
+          <div class="flex gap-2 mb-3">
+            <input type="text" id="newAssignmentInput" placeholder="새 과제 (예: 수학익힘 42쪽)" class="flex-1 text-xs px-3 py-2 bg-white rounded-xl border border-stone-300 outline-none focus:ring-2 focus:ring-brandOrange" />
+            <button onclick="addAssignment()" class="px-3.5 py-2 bg-brandOrange hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition shrink-0">
+              추가
+            </button>
+          </div>
+          <ul id="adminAssignmentList" class="flex-1 overflow-y-auto space-y-1.5 text-xs">
+            <!-- Dynamic assignments list -->
+          </ul>
+        </div>
+
+        <!-- Student List Management Card -->
+        <div class="bg-stone-50 p-3.5 rounded-2xl border border-stone-200 flex flex-col">
+          <h3 class="text-xs font-extrabold text-stone-800 mb-2 flex items-center gap-1.5">
+            <i class="fa-solid fa-users"></i>
+            <span>학생 명단 설정 (번호:이름 또는 이름만 한 줄씩)</span>
+          </h3>
+          <textarea id="studentListTextarea" rows="6" class="w-full text-xs p-2.5 bg-white rounded-xl border border-stone-300 outline-none focus:ring-2 focus:ring-stone-400 mb-2 font-mono resize-none"></textarea>
+          <button onclick="saveStudentList()" class="w-full py-2 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-xs font-bold transition">
+            학생 명단 저장
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- BOTTOM FOOTER (Mode Switcher placed at the very bottom) -->
+  <footer class="h-10 bg-white/95 backdrop-blur rounded-2xl px-3 flex items-center justify-between border-2 border-brandBorder shadow-xs shrink-0">
+    <div class="flex items-center gap-1.5">
+      <button onclick="switchTab('student')" id="tabBtn-student" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold bg-brandOrange text-white shadow-2xs transition">
+        <i class="fa-solid fa-tablet-screen-button mr-1"></i>학생 체크
+      </button>
+      <button onclick="switchTab('dashboard')" id="tabBtn-dashboard" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition">
+        <i class="fa-solid fa-desktop mr-1"></i>교실 현황판
+      </button>
+      <button onclick="openAdminWithPrompt()" id="tabBtn-admin" class="tab-btn px-3 py-1 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition">
+        <i class="fa-solid fa-lock mr-1"></i>교사 관리
+      </button>
+    </div>
+
+    <div class="text-[11px] font-semibold text-stone-400 hidden sm:block">
+      💡 자신의 번호를 터치하여 과제를 완료하세요
+    </div>
+  </footer>
+
+  <!-- MODAL 1: Individual Student Homework Check Window -->
+  <div id="checkModal" class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-3xl p-5 w-full max-w-sm border-2 border-brandBorder shadow-xl flex flex-col modal-pop">
+      <!-- Modal Header -->
+      <div class="flex justify-between items-center mb-3">
+        <div class="flex items-center gap-2">
+          <span id="modalStudentNumber" class="text-xs font-black text-brandOrange bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-200">
+            1번
+          </span>
+          <h2 id="modalStudentName" class="text-lg font-bold text-stone-800">
+            학생 이름
+          </h2>
+        </div>
+        <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-500 font-bold transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-stone-500 mb-3">완료한 과제를 터치하면 체크가 토글됩니다:</p>
+
+      <!-- Dynamic Checklist -->
+      <div id="modalChecklist" class="space-y-2 mb-4 max-h-60 overflow-y-auto pr-1">
+        <!-- Checklist items rendered dynamically -->
+      </div>
+
+      <!-- Close Button -->
+      <button onclick="closeModal()" class="w-full py-2.5 bg-brandGreen hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition shadow-xs">
+        확인 완료
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL 2: PIN Authentication Password Dialog -->
+  <div id="pinModal" class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-3xl p-5 w-full max-w-xs border-2 border-brandBorder shadow-xl flex flex-col modal-pop">
+      <h3 class="text-sm font-bold text-stone-800 mb-2 flex items-center gap-2">
+        <i class="fa-solid fa-key text-brandOrange"></i>
+        <span>교사 비밀번호 입력</span>
+      </h3>
+      <p class="text-xs text-stone-500 mb-3">초기 비밀번호는 <strong class="text-stone-800">0000</strong> 입니다.</p>
+      <input type="password" id="pinInput" maxlength="6" placeholder="비밀번호" class="w-full text-center tracking-widest text-base font-bold py-2 bg-stone-50 border border-stone-300 rounded-xl outline-none focus:ring-2 focus:ring-brandOrange mb-3" />
+      <div class="flex gap-2">
+        <button onclick="closePinModal()" class="flex-1 py-2 bg-stone-100 text-stone-600 rounded-xl text-xs font-bold hover:bg-stone-200">취소</button>
+        <button onclick="submitPin()" class="flex-1 py-2 bg-stone-800 text-white rounded-xl text-xs font-bold hover:bg-stone-900">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Custom UI Toast & Confirmation Dialog -->
+  <div id="toast" class="fixed bottom-14 left-1/2 -translate-x-1/2 bg-stone-800 text-white text-xs px-4 py-2 rounded-xl shadow-lg z-50 transition-all duration-300 opacity-0 pointer-events-none">
+    알림 메시지
+  </div>
+
+  <div id="customConfirmModal" class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-3xl p-5 w-full max-w-xs border-2 border-brandBorder shadow-xl flex flex-col modal-pop text-center">
+      <div id="confirmText" class="text-xs sm:text-sm font-bold text-stone-800 mb-4">
+        정말 진행하시겠습니까?
+      </div>
+      <div class="flex gap-2">
+        <button onclick="closeConfirmModal(false)" class="flex-1 py-2 bg-stone-100 text-stone-600 rounded-xl text-xs font-bold hover:bg-stone-200">취소</button>
+        <button onclick="closeConfirmModal(true)" class="flex-1 py-2 bg-rose-500 text-white rounded-xl text-xs font-bold hover:bg-rose-600">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Global default app state
+    window.state = {
+      assignments: [
+        { id: "1", title: "일기 쓰기" },
+        { id: "2", title: "수학익힘 34~37쪽" },
+        { id: "3", title: "준비물: 색종이, 풀" }
+      ],
+      students: Array.from({ length: 23 }, (_, i) => ({
+        id: i + 1,
+        number: i + 1,
+        name: `${i + 1}번 학생`
+      })),
+      checks: {},
+      adminPin: "0000"
+    };
+
+    // Firebase Initialization
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'namu-classroom-check-v1';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : { apiKey: "demo", authDomain: "demo.firebaseapp.com", projectId: "demo-project" };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let isRemoteUpdate = false;
+
+    // Real-time Cloud Sync Document Reference
+    const cloudDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'namuClassroomData', 'mainState');
+
+    async function initCloudSync() {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+
+        // Listen for real-time changes across all student tablets and TV
+        onSnapshot(cloudDocRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            if (data && data.state) {
+              isRemoteUpdate = true;
+              window.state = data.state;
+              window.renderAll();
+              isRemoteUpdate = false;
+            }
+          } else {
+            // Initialize remote doc if missing
+            setDoc(cloudDocRef, { state: window.state }).catch(e => console.warn("Doc init:", e));
+          }
+        }, (error) => {
+          console.warn("Real-time cloud listener offline or restricted:", error);
+        });
+
+      } catch (err) {
+        console.warn("Cloud Sync init fallback to local:", err);
+      }
+    }
+
+    // Function to push state to Cloud
+    window.saveState = function() {
+      localStorage.setItem("namu_classroom_mumucheck_v2", JSON.stringify(window.state));
+      window.renderAll();
+
+      if (!isRemoteUpdate && auth.currentUser) {
+        setDoc(cloudDocRef, { state: window.state }).catch(err => {
+          console.warn("Cloud save warning:", err);
+        });
+      }
+    };
+
+    window.initCloudSync = initCloudSync;
+  </script>
+
+  <script>
+    let selectedStudentId = null;
+    let pendingConfirmAction = null;
+
+    function loadLocalFallback() {
+      const saved = localStorage.getItem("namu_classroom_mumucheck_v2");
+      if (saved) {
+        try {
+          window.state = JSON.parse(saved);
+        } catch (e) {
+          console.error("Failed to parse stored state:", e);
+        }
+      }
+      
+      // Load GAS Settings
+      if (document.getElementById("gasUrlInput")) {
+        document.getElementById("gasUrlInput").value = window.state.gasUrl || "";
+        document.getElementById("gasTokenInput").value = window.state.gasToken || "namu2026";
+      }
+    }
+
+    function saveGasSettings() {
+      window.state.gasUrl = document.getElementById("gasUrlInput").value.trim();
+      window.state.gasToken = document.getElementById("gasTokenInput").value.trim();
+      window.saveState();
+      showToast("구글 시트 연동 설정이 저장되었습니다.");
+    }
+
+    async function syncToGoogleSheet() {
+      const url = window.state.gasUrl || document.getElementById("gasUrlInput").value.trim();
+      const token = window.state.gasToken || document.getElementById("gasTokenInput").value.trim();
+
+      if (!url) {
+        showToast("구글 Apps Script URL을 먼저 설정해주세요.");
+        return;
+      }
+
+      showToast("구글 시트로 동기화 중...");
+
+      try {
+        const payload = {
+          token: token,
+          action: "sync",
+          students: window.state.students,
+          assignments: window.state.assignments,
+          checks: window.state.checks
+        };
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data && data.ok) {
+          showToast("🎉 구글 시트 동기화 완료!");
+        } else {
+          showToast("동기화 실패: " + (data.error || "알 수 없는 오류"));
+        }
+      } catch (err) {
+        console.error("GAS Sync Error:", err);
+        showToast("구글 시트 전송 중 오류가 발생했습니다.");
+      }
+    }
+
+    function fetchWeather(lat, lng) {
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.current_weather) {
+            const temp = Math.round(data.current_weather.temperature);
+            const code = data.current_weather.weathercode;
+            document.getElementById('weatherTemp').innerText = `${temp}°C`;
+            document.getElementById('weatherIcon').innerText = getWeatherIcon(code);
+          }
+        })
+        .catch(() => {
+          document.getElementById('weatherTemp').innerText = '22°C';
+          document.getElementById('weatherIcon').innerText = '☀️';
+        });
+    }
+
+    function getWeatherIcon(code) {
+      if (code === 0) return '☀️';
+      if (code >= 1 && code <= 3) return '⛅';
+      if (code >= 45 && code <= 48) return '🌫️';
+      if (code >= 51 && code <= 67) return '🌧️';
+      if (code >= 71 && code <= 77) return '❄️';
+      return '🌤️';
+    }
+
+    function switchTab(mode) {
+      document.querySelectorAll(".tab-btn").forEach(btn => {
+        btn.className = "tab-btn px-3 py-1 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition";
+      });
+
+      const activeBtn = document.getElementById(`tabBtn-${mode}`);
+      if (activeBtn) {
+        activeBtn.className = "tab-btn px-3 py-1 rounded-xl text-xs font-bold bg-brandOrange text-white shadow-2xs transition";
+      }
+
+      document.getElementById("viewStudent").classList.toggle("hidden", mode !== "student");
+      document.getElementById("viewDashboard").classList.toggle("hidden", mode !== "dashboard");
+      document.getElementById("viewAdmin").classList.toggle("hidden", mode !== "admin");
+
+      renderAll();
+    }
+
+    function openAdminWithPrompt() {
+      document.getElementById("pinInput").value = "";
+      document.getElementById("pinModal").classList.remove("hidden");
+      document.getElementById("pinModal").classList.add("flex");
+    }
+
+    function closePinModal() {
+      document.getElementById("pinModal").classList.add("hidden");
+      document.getElementById("pinModal").classList.remove("flex");
+    }
+
+    function submitPin() {
+      const enteredPin = document.getElementById("pinInput").value;
+      if (enteredPin === window.state.adminPin) {
+        closePinModal();
+        switchTab("admin");
+        showToast("교사 관리자 모드로 전환되었습니다.");
+      } else {
+        showToast("비밀번호가 맞지 않습니다.");
+      }
+    }
+
+    function renderAll() {
+      renderStudentGrid();
+      renderDashboardGrid();
+      renderAdminView();
+      updateProgress();
+    }
+
+    function renderStudentGrid() {
+      const grid = document.getElementById("studentGrid");
+      grid.innerHTML = "";
+
+      window.state.students.forEach(student => {
+        const total = window.state.assignments.length;
+        const completed = window.state.assignments.filter(a => window.state.checks[`${student.id}_${a.id}`]).length;
+        const isAllDone = total > 0 && completed === total;
+
+        const card = document.createElement("button");
+        card.onclick = () => openStudentModal(student.id);
+        card.className = `relative rounded-2xl p-1.5 sm:p-2 flex flex-col justify-between items-center text-center transition active:scale-95 border-2 ${
+          isAllDone 
+            ? "bg-emerald-50/90 border-brandGreen shadow-xs" 
+            : completed > 0 
+            ? "bg-amber-50/80 border-amber-300" 
+            : "bg-white border-brandBorder shadow-2xs hover:border-amber-400"
+        }`;
+
+        card.innerHTML = `
+          <div class="w-full flex justify-between items-center">
+            <span class="text-[10px] sm:text-xs font-black px-1.5 py-0.2 rounded-md ${
+              isAllDone ? "bg-brandGreen text-white" : "bg-stone-100 text-stone-600"
+            }">${student.number}</span>
+            ${isAllDone ? '<span class="text-xs sm:text-sm">🎉</span>' : ''}
+          </div>
+          <div class="font-bold text-xs sm:text-sm text-stone-800 truncate w-full px-0.5 my-auto">${student.name}</div>
+          <div class="text-[10px] sm:text-xs font-black ${isAllDone ? 'text-emerald-700' : 'text-stone-400'}">
+            ${completed}/${total}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderDashboardGrid() {
+      const grid = document.getElementById("dashboardGrid");
+      grid.innerHTML = "";
+
+      let totalAllDoneStudents = 0;
+
+      window.state.students.forEach(student => {
+        const total = window.state.assignments.length;
+        const completed = window.state.assignments.filter(a => window.state.checks[`${student.id}_${a.id}`]).length;
+        const isAllDone = total > 0 && completed === total;
+
+        if (isAllDone) totalAllDoneStudents++;
+
+        const card = document.createElement("div");
+        card.className = `rounded-xl p-1.5 flex flex-col justify-between border-2 ${
+          isAllDone ? "bg-emerald-50/90 border-brandGreen" : "bg-stone-50/80 border-stone-200"
+        }`;
+
+        let badges = window.state.assignments.map((a, idx) => {
+          const done = window.state.checks[`${student.id}_${a.id}`];
+          return `<span class="text-[9px] px-1 py-0.2 rounded font-extrabold truncate ${
+            done ? 'bg-brandGreen text-white' : 'bg-stone-200 text-stone-400'
+          }">과제${idx+1}</span>`;
+        }).join("");
+
+        card.innerHTML = `
+          <div class="flex justify-between items-center text-[11px] font-bold text-stone-800 truncate">
+            <span>${student.number}. ${student.name}</span>
+            <span class="${isAllDone ? 'text-brandGreen font-black' : 'text-stone-400'}">${completed}/${total}</span>
+          </div>
+          <div class="flex flex-wrap gap-0.5 mt-1">
+            ${badges}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      document.getElementById("dashboardSummaryText").innerText = `완료: ${totalAllDoneStudents} / ${window.state.students.length} 명`;
+    }
+
+    function renderAdminView() {
+      const list = document.getElementById("adminAssignmentList");
+      list.innerHTML = "";
+
+      window.state.assignments.forEach(a => {
+        const li = document.createElement("li");
+        li.className = "flex justify-between items-center bg-white p-2.5 rounded-xl border border-amber-200 shadow-2xs";
+        li.innerHTML = `
+          <span class="text-stone-800 font-bold text-xs">${a.title}</span>
+          <button onclick="removeAssignment('${a.id}')" class="text-rose-500 hover:text-rose-700 font-bold px-2 py-0.5 text-xs bg-rose-50 rounded-lg">
+            삭제
+          </button>
+        `;
+        list.appendChild(li);
+      });
+
+      const textarea = document.getElementById("studentListTextarea");
+      textarea.value = window.state.students.map(s => `${s.number}:${s.name}`).join("\n");
+    }
+
+    function updateProgress() {
+      const totalPossible = window.state.students.length * window.state.assignments.length;
+      if (totalPossible === 0) return;
+
+      const completedCount = Object.values(window.state.checks).filter(Boolean).length;
+      const pct = Math.round((completedCount / totalPossible) * 100);
+
+      document.getElementById("headerProgressBar").style.width = `${pct}%`;
+      document.getElementById("headerProgressText").innerText = `${pct}%`;
+    }
+
+    function openStudentModal(studentId) {
+      selectedStudentId = studentId;
+      const student = window.state.students.find(s => s.id === studentId);
+      if (!student) return;
+
+      document.getElementById("modalStudentNumber").innerText = `${student.number}번`;
+      document.getElementById("modalStudentName").innerText = student.name;
+
+      renderModalChecklist();
+
+      document.getElementById("checkModal").classList.remove("hidden");
+      document.getElementById("checkModal").classList.add("flex");
+    }
+
+    function renderModalChecklist() {
+      if (!selectedStudentId) return;
+      const list = document.getElementById("modalChecklist");
+      list.innerHTML = "";
+
+      window.state.assignments.forEach(a => {
+        const isChecked = !!window.state.checks[`${selectedStudentId}_${a.id}`];
+        const btn = document.createElement("button");
+        btn.onclick = () => toggleCheck(selectedStudentId, a.id);
+        btn.className = `w-full p-3 rounded-2xl flex items-center justify-between transition border-2 ${
+          isChecked 
+            ? "bg-emerald-50 border-brandGreen text-emerald-900" 
+            : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
+        }`;
+        btn.innerHTML = `
+          <span class="font-bold text-xs sm:text-sm">${a.title}</span>
+          <span class="w-6 h-6 rounded-xl flex items-center justify-center text-xs font-black ${
+            isChecked ? "bg-brandGreen text-white" : "border-2 border-stone-300"
+          }">${isChecked ? "✓" : ""}</span>
+        `;
+        list.appendChild(btn);
+      });
+    }
+
+    function toggleCheck(studentId, assignmentId) {
+      const prev = !!window.state.checks[`${studentId}_${assignmentId}`];
+      window.state.checks[`${studentId}_${assignmentId}`] = !prev;
+
+      const isNowAllDone = window.state.assignments.every(a => window.state.checks[`${studentId}_${a.id}`]);
+      if (!prev && isNowAllDone && typeof confetti === "function") {
+        confetti({
+          particleCount: 70,
+          spread: 60,
+          origin: { y: 0.6 }
+        });
+      }
+
+      window.saveState();
+      renderModalChecklist();
+    }
+
+    function closeModal() {
+      document.getElementById("checkModal").classList.add("hidden");
+      document.getElementById("checkModal").classList.remove("flex");
+      selectedStudentId = null;
+    }
+
+    function addAssignment() {
+      const input = document.getElementById("newAssignmentInput");
+      const title = input.value.trim();
+      if (!title) {
+        showToast("과제 이름을 입력하세요.");
+        return;
+      }
+
+      window.state.assignments.push({ id: Date.now().toString(), title });
+      input.value = "";
+      window.saveState();
+      showToast("새 과제가 추가되었습니다.");
+    }
+
+    function removeAssignment(id) {
+      showConfirm("이 과제를 삭제하시겠습니까?", () => {
+        window.state.assignments = window.state.assignments.filter(a => a.id !== id);
+        Object.keys(window.state.checks).forEach(k => {
+          if (k.endsWith(`_${id}`)) delete window.state.checks[k];
+        });
+        window.saveState();
+        showToast("과제가 삭제되었습니다.");
+      });
+    }
+
+    function saveStudentList() {
+      const text = document.getElementById("studentListTextarea").value.trim();
+      const lines = text.split("\n").filter(l => l.trim().length > 0);
+      
+      const newStudents = lines.map((line, idx) => {
+        if (line.includes(":")) {
+          const parts = line.split(":");
+          const num = parseInt(parts[0].trim(), 10) || idx + 1;
+          return { id: num, number: num, name: parts[1].trim() };
+        }
+        return { id: idx + 1, number: idx + 1, name: line.trim() };
+      });
+
+      window.state.students = newStudents;
+      window.saveState();
+      showToast("학생 명단이 변경되었습니다.");
+    }
+
+    function confirmResetToday() {
+      showConfirm("오늘의 모든 과제 체크 현황을 초기화하시겠습니까?", () => {
+        window.state.checks = {};
+        window.saveState();
+        showToast("체크 기록이 초기화되었습니다.");
+      });
+    }
+
+    function exportToCSV() {
+      let csvContent = "\uFEFF번호,이름," + window.state.assignments.map(a => `"${a.title}"`).join(",") + ",전체완료여부\n";
+
+      window.state.students.forEach(s => {
+        const results = window.state.assignments.map(a => window.state.checks[`${s.id}_${a.id}`] ? "완료" : "미완료");
+        const allDone = window.state.assignments.length > 0 && window.state.assignments.every(a => window.state.checks[`${s.id}_${a.id}`]);
+        csvContent += `${s.number},"${s.name}",${results.join(",")},${allDone ? "완료" : "미완료"}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const todayStr = new Date().toISOString().slice(0, 10);
+      
+      link.setAttribute("href", url);
+      link.setAttribute("download", `나무반_과제체크_${todayStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("CSV 파일이 다운로드되었습니다.");
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.innerText = msg;
+      toast.classList.remove("opacity-0", "pointer-events-none");
+      toast.classList.add("opacity-100");
+      setTimeout(() => {
+        toast.classList.add("opacity-0", "pointer-events-none");
+        toast.classList.remove("opacity-100");
+      }, 2000);
+    }
+
+    function showConfirm(text, onConfirm) {
+      pendingConfirmAction = onConfirm;
+      document.getElementById("confirmText").innerText = text;
+      document.getElementById("customConfirmModal").classList.remove("hidden");
+      document.getElementById("customConfirmModal").classList.add("flex");
+    }
+
+    function closeConfirmModal(confirmed) {
+      document.getElementById("customConfirmModal").classList.add("hidden");
+      document.getElementById("customConfirmModal").classList.remove("flex");
+      if (confirmed && typeof pendingConfirmAction === "function") {
+        pendingConfirmAction();
+      }
+      pendingConfirmAction = null;
+    }
+  </script>
+</body>
+</html>
